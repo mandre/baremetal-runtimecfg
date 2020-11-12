@@ -313,3 +313,34 @@ func AddressesDefault(af AddressFilter) ([]net.IP, error) {
 	}
 	return matches, nil
 }
+
+// Returns an interface suitable for holding the given vip
+func GetSuitableInterface(vip net.IP) (vipIface net.Interface, err error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return vipIface, err
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return vipIface, err
+		}
+		for _, addr := range addrs {
+			switch addr.(type) {
+			case *net.IPNet:
+				// FIXME: Breaks if more then one interface on the host has the same prefix
+				// DHCPv6 assigns addresses with a /128 if encountered assume /64
+				// so that the n.Contains returns true if the VIP has the same prefix
+				_, nn, _ := net.ParseCIDR(strings.Replace(addr.String(), "/128", "/64", 1))
+
+				if nn.Contains(vip) {
+					return iface, nil
+				}
+			default:
+				fmt.Println("not supported addr")
+			}
+		}
+	}
+	return vipIface, err
+}

@@ -54,10 +54,24 @@ var nodeIPSetCmd = &cobra.Command{
 	},
 }
 
+var nodeIPVipableCmd = &cobra.Command{
+	Use:                   "vipable [Virtual IP]",
+	DisableFlagsInUseLine: true,
+	Short:                 "Exits with zero status code when the node is attached to the VIP subnet, and non-zero otherwise.",
+	Args:                  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		err := vipable(cmd, args)
+		if err != nil {
+			log.Fatal(err)
+		}
+	},
+}
+
 // init executes upon import
 func init() {
 	nodeIPCmd.AddCommand(nodeIPShowCmd)
 	nodeIPCmd.AddCommand(nodeIPSetCmd)
+	nodeIPCmd.AddCommand(nodeIPVipableCmd)
 	nodeIPCmd.PersistentFlags().BoolVarP(&retry, "retry-on-failure", "r", false, "Keep retrying until it finds a suitable IP address. System errors will still abort")
 	rootCmd.AddCommand(nodeIPCmd)
 }
@@ -173,4 +187,25 @@ func parseIPs(args []string) ([]net.IP, error) {
 		log.Infof("Parsed Virtual IP %s", ips[i])
 	}
 	return ips, nil
+}
+
+func vipable(cmd *cobra.Command, args []string) error {
+	vips, err := parseIPs(args)
+	if err != nil {
+		return err
+	}
+
+	for _, vip := range vips {
+		iface, err := utils.GetSuitableInterface(vip)
+		if err != nil {
+			return err
+		}
+
+		if iface.Index != 0 {
+			log.Infof("Found interface %s for VIP %s", iface.Name, vip)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("No suitable interface for any of the VIPs %s", args)
 }
